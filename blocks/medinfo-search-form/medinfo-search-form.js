@@ -28,13 +28,21 @@ export default async function decorate(block) {
   const paramKeyword = currentParams.get('keyword') || currentParams.get('q') || '';
 
   if (productSelect && paramProduct) {
-    const matchingOption = [...productSelect.options].find((opt) => {
-      const match = opt.value.match(/\(([^)]+)\)/);
-      const extracted = match && match[1].trim() ? match[1].trim() : opt.value.trim();
-      return extracted.toLowerCase() === paramProduct.toLowerCase();
-    });
-    if (matchingOption) productSelect.value = matchingOption.value;
-  }
+  const matchingOption = [...productSelect.options].find((opt) => {
+    const rawVal = opt.value.trim();
+    const match = rawVal.match(/\(([^)]+)\)/);
+    const extracted = match && match[1].trim() ? match[1].trim() : rawVal;
+    const firstWord = extracted.split(/[-\s]/)[0];
+    
+    // Compare both the full extracted string and the normalized first word
+    return (
+      extracted.toLowerCase() === paramProduct.toLowerCase() ||
+      firstWord.toLowerCase() === paramProduct.toLowerCase() ||
+      rawVal.toLowerCase().includes(paramProduct.toLowerCase())
+    );
+  });
+  if (matchingOption) productSelect.value = matchingOption.value;
+}
 
   if (categorySelect && paramCategory) {
     const matchingOption = [...categorySelect.options].find(
@@ -69,7 +77,17 @@ export default async function decorate(block) {
 
     const rawProductValue = productSelect?.value?.trim() || '';
     const match = rawProductValue.match(/\(([^)]+)\)/);
-    const productValue = (match && match[1].trim()) ? match[1].trim() : rawProductValue;
+
+    // 1. Get the inside of the parentheses (e.g., "eptinezumab-jjmr") or fallback to raw
+    const extracted = (match && match[1].trim()) ? match[1].trim() : rawProductValue;
+
+    // 2. Take only the part before '-' or whitespace (e.g., "eptinezumab")
+    const firstWord = extracted.split(/[-\s]/)[0];
+
+    // 3. Capitalize the first letter (e.g., "Eptinezumab")
+    const productValue = firstWord 
+      ? firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase() 
+      : '';
     const categoryValue = categorySelect?.value?.trim() || '';
     const trimmedKeyword = keywordInput?.value?.trim() || '';
 
@@ -81,7 +99,14 @@ export default async function decorate(block) {
 
     if (isProductMissing || isCategoryMissing) return;
 
-    const resultsUrl = new URL('/us/en/hcp/search-results', window.location.origin);
+    // Read the authored action from the form element (e.g., "http://localhost:3000/us/en/hcp/search-results" or "/us/en/hcp/search-results")
+    const formAction = form.getAttribute('action') || form.action || '/us/en/hcp/search-results';
+
+    // Safely extract just the pathname (e.g., "/us/en/hcp/search-results")
+    const targetPath = new URL(formAction, window.location.origin).pathname;
+
+    // Construct the clean result URL using the current environment's origin
+    const resultsUrl = new URL(targetPath, window.location.origin);
     resultsUrl.searchParams.set('product', productValue);
     resultsUrl.searchParams.set('category', categoryValue);
 

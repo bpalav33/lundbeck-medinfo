@@ -62,23 +62,48 @@ function buildNoResults() {
 export default function decorate(block) {
   const rows = [...block.children];
 
-  // First row is treated as the count heading if it has a single cell.
+  // 1. Parse URL Parameters
+  const params = new URLSearchParams(window.location.search);
+  const productParam = (params.get('product') || '').toLowerCase().trim();
+  const categoryParam = (params.get('category') || '').toLowerCase().trim();
+  const keywordParam = (params.get('keyword') || params.get('q') || '').toLowerCase().trim();
+
+  // 2. Identify header row vs data rows
   let headingText = 'Results:';
-  let resultRows = rows;
+  let dataRows = rows;
   if (rows[0] && rows[0].children.length === 1) {
     headingText = rows[0].textContent.trim() || headingText;
-    resultRows = rows.slice(1);
+    dataRows = rows.slice(1);
   }
 
+  // 3. Filter data rows against query parameters
+  const filteredRows = dataRows.filter((row) => {
+    const textContent = row.textContent.toLowerCase();
+
+    // Check keyword
+    if (keywordParam && !textContent.includes(keywordParam)) {
+      return false;
+    }
+    // Check product match (if text is within the row cells)
+    if (productParam && !textContent.includes(productParam)) {
+      return false;
+    }
+    // Check category match (if category is present in row cells)
+    if (categoryParam && !textContent.includes(categoryParam)) {
+      return false;
+    }
+    return true;
+  });
+
+  // 4. Render DOM
   block.textContent = '';
 
   const section = document.createElement('div');
   section.className = 'search-results-section';
 
-  const count = resultRows.length;
+  const count = filteredRows.length;
   const heading = document.createElement('h2');
   heading.className = 'search-results-count';
-  // Preserve an authored "Results:" style label, prefixing with the count.
   heading.textContent = `${count} ${headingText.replace(/^\d+\s*/, '')}`.trim();
   section.append(heading);
 
@@ -89,7 +114,7 @@ export default function decorate(block) {
     list.append(buildNoResults());
   } else {
     list.append(buildColumnHeaders());
-    resultRows.forEach((row) => list.append(buildResultRow(row)));
+    filteredRows.forEach((row) => list.append(buildResultRow(row)));
   }
 
   section.append(list);
