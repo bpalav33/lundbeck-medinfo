@@ -28,21 +28,20 @@ export default async function decorate(block) {
   const paramKeyword = currentParams.get('keyword') || currentParams.get('q') || '';
 
   if (productSelect && paramProduct) {
-  const matchingOption = [...productSelect.options].find((opt) => {
-    const rawVal = opt.value.trim();
-    const match = rawVal.match(/\(([^)]+)\)/);
-    const extracted = match && match[1].trim() ? match[1].trim() : rawVal;
-    const firstWord = extracted.split(/[-\s]/)[0];
-    
-    // Compare both the full extracted string and the normalized first word
-    return (
-      extracted.toLowerCase() === paramProduct.toLowerCase() ||
-      firstWord.toLowerCase() === paramProduct.toLowerCase() ||
-      rawVal.toLowerCase().includes(paramProduct.toLowerCase())
-    );
-  });
-  if (matchingOption) productSelect.value = matchingOption.value;
-}
+    const matchingOption = [...productSelect.options].find((opt) => {
+      const rawVal = opt.value.trim();
+      const match = rawVal.match(/\(([^)]+)\)/);
+      const extracted = match && match[1].trim() ? match[1].trim() : rawVal;
+      const firstWord = extracted.split(/[-\s]/)[0];
+
+      return (
+        extracted.toLowerCase() === paramProduct.toLowerCase() ||
+        firstWord.toLowerCase() === paramProduct.toLowerCase() ||
+        rawVal.toLowerCase().includes(paramProduct.toLowerCase())
+      );
+    });
+    if (matchingOption) productSelect.value = matchingOption.value;
+  }
 
   if (categorySelect && paramCategory) {
     const matchingOption = [...categorySelect.options].find(
@@ -55,18 +54,42 @@ export default async function decorate(block) {
     keywordInput.value = paramKeyword;
   }
 
-  // 4. Validation helper
-  const setFieldError = (element, isError) => {
+  // 4. Validation helper with dynamic error message injection
+  const setFieldError = (element, isError, message = '') => {
     if (!element) return;
     const wrapper = element.closest('.field-wrapper');
-    if (wrapper) {
-      wrapper.classList.toggle('has-error', isError);
-    }
+    if (!wrapper) return;
+
+    wrapper.classList.toggle('has-error', isError);
     element.setAttribute('aria-invalid', isError ? 'true' : 'false');
+
+    let errorElement = wrapper.querySelector('.field-error-msg');
+
+    if (isError) {
+      if (!errorElement) {
+        errorElement = document.createElement('span');
+        errorElement.className = 'field-error-msg';
+        errorElement.setAttribute('role', 'alert');
+        wrapper.appendChild(errorElement);
+      }
+      errorElement.textContent = message;
+    } else if (errorElement) {
+      errorElement.remove();
+    }
   };
 
-  productSelect?.addEventListener('change', () => setFieldError(productSelect, false));
-  categorySelect?.addEventListener('change', () => setFieldError(categorySelect, false));
+  // Clear errors dynamically when the user selects a valid option
+  productSelect?.addEventListener('change', () => {
+    if (productSelect.value.trim()) {
+      setFieldError(productSelect, false);
+    }
+  });
+
+  categorySelect?.addEventListener('change', () => {
+    if (categorySelect.value.trim()) {
+      setFieldError(categorySelect, false);
+    }
+  });
 
   // 5. Handle submission
   const handleSearch = (e) => {
@@ -78,13 +101,13 @@ export default async function decorate(block) {
     const rawProductValue = productSelect?.value?.trim() || '';
     const match = rawProductValue.match(/\(([^)]+)\)/);
 
-    // 1. Get the inside of the parentheses (e.g., "eptinezumab-jjmr") or fallback to raw
+    // 1. Get the inside of the parentheses or fallback to raw
     const extracted = (match && match[1].trim()) ? match[1].trim() : rawProductValue;
 
-    // 2. Take only the part before '-' or whitespace (e.g., "eptinezumab")
+    // 2. Take only the part before '-' or whitespace
     const firstWord = extracted.split(/[-\s]/)[0];
 
-    // 3. Capitalize the first letter (e.g., "Eptinezumab")
+    // 3. Capitalize the first letter
     const productValue = firstWord 
       ? firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase() 
       : '';
@@ -94,19 +117,28 @@ export default async function decorate(block) {
     const isProductMissing = !productValue;
     const isCategoryMissing = !categoryValue;
 
-    setFieldError(productSelect, isProductMissing);
-    setFieldError(categorySelect, isCategoryMissing);
+    setFieldError(
+      productSelect, 
+      isProductMissing, 
+      '* Product selection is required'
+    );
+    setFieldError(
+      categorySelect, 
+      isCategoryMissing, 
+      '* Category selection is required'
+    );
 
     if (isProductMissing || isCategoryMissing) return;
 
-    // Read the authored action from the form element (e.g., "http://localhost:3000/us/en/hcp/search-results" or "/us/en/hcp/search-results")
-    const formAction = form.getAttribute('action') || form.action || '/us/en/hcp/search-results';
+    // Read authored action or fallback
+    const formAction = form.dataset.action 
+      || form.getAttribute('data-action') 
+      || form.getAttribute('action') 
+      || '/us/en/hcp/search-results';
 
-    // Safely extract just the pathname (e.g., "/us/en/hcp/search-results")
     const targetPath = new URL(formAction, window.location.origin).pathname;
-
-    // Construct the clean result URL using the current environment's origin
     const resultsUrl = new URL(targetPath, window.location.origin);
+    
     resultsUrl.searchParams.set('product', productValue);
     resultsUrl.searchParams.set('category', categoryValue);
 
