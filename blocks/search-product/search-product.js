@@ -243,11 +243,22 @@ export default function decorate(block) {
     categoryDropdown.setError(!categoryValue);
     if (!productValue || !categoryValue) return;
 
-    const resultsUrl = new URL('/us/en/hcp/products', window.location.origin);
-    resultsUrl.searchParams.set('product', productValue);
+    const rawProductValue = productValue?.trim() || '';
+    const match = rawProductValue.match(/\(([^)]+)\)/);
+    // 1. Get the inside of the parentheses or fallback to raw
+    const extracted = (match && match[1].trim()) ? match[1].trim() : rawProductValue;
+    // 2. Take only the part before '-' or whitespace
+    const firstWord = extracted.split(/[-\s]/)[0];
+    // 3. Capitalize the first letter
+    const productValueNew = firstWord 
+      ? firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase() 
+      : '';
+
+    const resultsUrl = new URL('/us/en/hcp/search-results', window.location.origin);
+    resultsUrl.searchParams.set('product', productValueNew);
     resultsUrl.searchParams.set('category', categoryValue);
     const trimmedKeyword = keyword.value.trim();
-    if (trimmedKeyword) resultsUrl.searchParams.set('q', trimmedKeyword);
+    if (trimmedKeyword) resultsUrl.searchParams.set('keyword', trimmedKeyword);
     window.location.href = `${resultsUrl.pathname}${resultsUrl.search}`;
   });
 
